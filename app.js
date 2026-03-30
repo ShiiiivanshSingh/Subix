@@ -60,8 +60,9 @@ function pick(m) { qInput.value = m.title; hideSug(); renderMovie(m); fetchPoste
 
 async function searchTop() {
   const q = qInput.value.trim();
+  hideSug();
   if (!q) return;
-  hideSug(); setLoading(true); setError('');
+  setLoading(true); setError('');
   document.getElementById('result').style.display = 'none';
   try {
     const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(q)}&language=en-US`);
@@ -74,7 +75,9 @@ async function searchTop() {
 }
 
 function renderMovie(m) {
-  const poster = m.poster_path ? `<img src="${IMG_BASE}w342${m.poster_path}" alt="${m.title} poster">` : `<div class="no-poster">No Poster</div>`;
+  const poster = m.poster_path
+    ? `<img src="${IMG_BASE}w342${m.poster_path}" alt="${m.title} poster" onload="this.closest('.poster-wrap').classList.add('loaded')">`
+    : `<div class="no-poster">No Poster</div>`;
   const year = m.release_date ? m.release_date.slice(0, 4) : '—';
   const rating = m.vote_average ? m.vote_average.toFixed(1) : '—';
   const subUrl = `https://subdl.com/search/${encodeURIComponent(m.title)}`;
@@ -201,7 +204,7 @@ function renderGallery(filter) {
     const res = p.width&&p.height ? `${p.width}×${p.height}` : '';
     const lang = p.iso_639_1 ? (langLabels[p.iso_639_1]||p.iso_639_1.toUpperCase()) : '';
     const meta = [lang,res].filter(Boolean).join(' · ');
-    return `<div class="masonry-item ${isBackdrop ? 'is-backdrop' : ''}"><img src="${thumb}" alt="image" loading="lazy"/><div class="poster-overlay"><div class="overlay-meta">${meta}</div><div class="overlay-btns"><button class="btn-view" onclick="openLightbox(${i},'${filter}')">👁 View</button><a class="btn-dl" href="${orig}" download="${p.file_path.replace(/\//g,'')}" target="_blank">⬇ 4K</a></div></div></div>`;
+    return `<div class="masonry-item ${isBackdrop ? 'is-backdrop' : ''}" onclick="openLightbox(${i},'${filter}')"><img src="${thumb}" alt="image" loading="lazy"/><div class="poster-overlay"><div class="overlay-meta">${meta}</div><div class="overlay-btns"><a class="btn-dl" href="${orig}" download="${p.file_path.replace(/\//g,'')}" target="_blank" onclick="event.stopPropagation()">⬇ Download 4K</a></div></div></div>`;
   }).join('')}</div>`;
   body.innerHTML = filterHTML + gridHTML;
 }
@@ -209,9 +212,9 @@ function renderGallery(filter) {
 function openLightbox(idx, filter) {
   lbPosters = getFiltered(filter);
   lbIdx = idx;
-  updateLightbox();
   document.getElementById('lightbox').classList.add('open');
   document.body.style.overflow = 'hidden';
+  updateLightbox();
 }
 
 function updateLightbox() {
@@ -220,7 +223,17 @@ function updateLightbox() {
   const orig = `${IMG_BASE}original${p.file_path}`;
   const res = p.width&&p.height ? `${p.width} × ${p.height} px` : '';
   const lang = p.iso_639_1 ? (langLabels[p.iso_639_1]||p.iso_639_1.toUpperCase()) : '';
-  document.getElementById('lb-img').src = preview;
+  const lbImg = document.getElementById('lb-img');
+  const lbSpinner = document.getElementById('lb-spinner');
+  lbImg.style.opacity = '0';
+  lbSpinner.style.display = 'flex';
+  const img = new Image();
+  img.onload = () => {
+    lbImg.src = preview;
+    lbImg.style.opacity = '1';
+    lbSpinner.style.display = 'none';
+  };
+  img.src = preview;
   document.getElementById('lb-dl').href = orig;
   document.getElementById('lb-dl').setAttribute('download', p.file_path.replace(/\//g,''));
   document.getElementById('lb-meta').textContent = [lang,res,`${lbIdx+1} / ${lbPosters.length}`].filter(Boolean).join('  ·  ');
@@ -267,3 +280,78 @@ function closeDrawer() {
 }
 
 document.addEventListener('keydown', e => { if(e.key==='Escape') closeDrawer(); }, true);
+
+const SUGGESTED = [
+  "Sleepless in Seattle",
+  "A Girl Walks Home Alone at Night", "Magnolia",
+  "Portrait of a Lady on Fire", "My Night at Maud's", "Petite Maman", "The Apartment",
+  "Adventures in Babysitting", "Y Tu Mamá También",
+  "When Harry Met Sally", "Mulholland Drive",
+  "Groundhog Day", "Amélie", "One Battle After Another",
+  "Tees Maar Khan", "The Moment"
+];
+
+const CHIP_COLORS = ['var(--yellow)','var(--accent)','var(--accent2)','var(--green)','var(--orange)','var(--pink)'];
+
+async function loadSuggestedShelf() {
+  const track = document.getElementById('shelf-track');
+  if (!track) return;
+  track.innerHTML = SUGGESTED.map((title, i) => {
+    const color = CHIP_COLORS[i % CHIP_COLORS.length];
+    const textColor = (color === 'var(--yellow)' || color === 'var(--green)') ? 'var(--text)' : 'var(--white)';
+    return `<div class="shelf-chip" data-title="${title}" onclick="pickSuggested('${title.replace(/'/g,"\\'")}',this)" style="--chip-bg:${color};--chip-color:${textColor}">
+      <div class="chip-poster chip-poster-loading"></div>
+      <div class="chip-title">${title}</div>
+    </div>`;
+  }).join('');
+
+  SUGGESTED.forEach(async (title, i) => {
+    try {
+      const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(title)}&language=en-US`);
+      const d = await r.json();
+      const movie = d.results?.[0];
+      if (!movie?.poster_path) return;
+      const chip = track.querySelectorAll('.shelf-chip')[i];
+      if (!chip) return;
+      const posterEl = chip.querySelector('.chip-poster');
+      posterEl.classList.remove('chip-poster-loading');
+      posterEl.style.backgroundImage = `url(${IMG_BASE}w185${movie.poster_path})`;
+      chip.dataset.id = movie.id;
+    } catch {}
+  });
+}
+
+function pickSuggested(title) {
+  qInput.value = title;
+  hideSuggested();
+  searchTop();
+}
+
+function hideSuggested() {
+  const shelf = document.getElementById('suggested-shelf');
+  if (shelf) shelf.style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadSuggestedShelf(); });
+
+const __renderMovie = window.renderMovie;
+window.renderMovie = function(m) {
+  hideSuggested();
+  __renderMovie(m);
+};
+
+const titleColors = [
+  { text: '#0a0a0a' },
+  { text: '#ff3f3f' },
+  { text: '#3d5aff' },
+  { text: '#00c27a' },
+  { text: '#ff7a1a' },
+  { text: '#ff5edb' },
+  { text: '#ffe135' },
+];
+let titleColorIdx = 0;
+document.querySelector('header h1').addEventListener('click', function() {
+  titleColorIdx = (titleColorIdx + 1) % titleColors.length;
+  this.style.color = titleColors[titleColorIdx].text;
+  this.style.textShadow = 'none';
+});
