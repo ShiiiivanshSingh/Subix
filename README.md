@@ -2,8 +2,7 @@
 
 A movie lookup tool that help you search any film and instantly get its details, high-res posters, backdrops, subtitle links, and similar movie recommendations — all in one place.
 
-<img width="1470" height="956" alt="image" src="https://github.com/user-attachments/assets/691f1465-784d-447e-a70c-cb5f3b844398" />
-
+<img width="1470" height="956" alt="image" src="https://github.com/user-attachments/assets/0b70022a-9bb6-4bd0-9f8a-135a95fa6cff" />
 
 <img width="1470" height="956" alt="image" src="https://github.com/user-attachments/assets/74732bbf-f371-40e8-a283-c7793f5afc16" />
 
